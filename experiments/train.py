@@ -19,6 +19,7 @@ import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+import math
 
 from models.encoder import Encoder
 from models.decoder import Decoder
@@ -28,6 +29,47 @@ from utils.sync_pattern import SyncPatternGenerator
 from utils.losses import CompositeLoss
 from utils.dataset import get_dataloader
 from utils.watermark_utils import WatermarkPreprocessor
+
+
+def compute_psnr(a, b, max_val=2.0):
+    # 输入范围[-1,1]，max_val=2.0
+    mse = torch.mean((a - b) ** 2)
+    if mse == 0:
+        return 99.0
+    return 10 * math.log10((max_val ** 2) / mse.item())
+
+
+def _gaussian_window(window_size=11, sigma=1.5, channels=3, device="cpu"):
+    coords = torch.arange(window_size, device=device) - window_size // 2
+    g = torch.exp(-(coords ** 2) / (2 * sigma ** 2))
+    g = (g / g.sum()).unsqueeze(0)
+    window_1d = g
+    window_2d = window_1d.T @ window_1d
+    window = window_2d.expand(channels, 1, window_size, window_size)
+    return window
+
+
+def compute_ssim(img1, img2, window_size=11, sigma=1.5):
+    # 简化版 SSIM，假设输入范围[-1,1]
+    device = img1.device
+    channel = img1.size(1)
+    window = _gaussian_window(window_size, sigma, channel, device=device)
+    padding = window_size // 2
+    mu1 = torch.nn.functional.conv2d(img1, window, padding=padding, groups=channel)
+    mu2 = torch.nn.functional.conv2d(img2, window, padding=padding, groups=channel)
+    mu1_sq = mu1.pow(2)
+    mu2_sq = mu2.pow(2)
+    mu1_mu2 = mu1 * mu2
+
+    sigma1_sq = torch.nn.functional.conv2d(img1 * img1, window, padding=padding, groups=channel) - mu1_sq
+    sigma2_sq = torch.nn.functional.conv2d(img2 * img2, window, padding=padding, groups=channel) - mu2_sq
+    sigma12 = torch.nn.functional.conv2d(img1 * img2, window, padding=padding, groups=channel) - mu1_mu2
+
+    C1 = 0.01 ** 2
+    C2 = 0.03 ** 2
+
+    ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) * (sigma1_sq + sigma2_sq + C2))
+    return ssim_map.mean().item()
 
 class WatermarkTrainer:
     def __init__(self, config):
@@ -72,8 +114,8 @@ class WatermarkTrainer:
         if not private_key_path.exists() or not public_key_path.exists():
             self.preprocessor.save_keys(private_key_path, public_key_path)
         
-        # 优化器
-        self.optimizer = optim.Adam(
+        # 优化器（AdamW）
+        self.optimizer = optim.AdamW(
             list(self.encoder.parameters()) + 
             list(self.decoder.parameters()),
             lr=config['lr']
@@ -119,6 +161,7 @@ class WatermarkTrainer:
         
         pbar = tqdm(self.train_loader, desc=f'Epoch {epoch}')
         epoch_losses = {'total': 0, 'perceptual': 0, 'watermark': 0}
+        epoch_metrics = {'ber': 0, 'psnr': 0, 'ssim': 0}
         
         for batch_idx, batch in enumerate(pbar):
             # 数据移到设备
@@ -188,26 +231,41 @@ class WatermarkTrainer:
             # 累计损失
             for k in epoch_losses:
                 epoch_losses[k] += losses[k].item()
+            # 指标：BER/PSNR/SSIM
+            with torch.no_grad():
+                pred_bits = (pred_watermarks > 0.5).float()
+                ber = (pred_bits != watermarks).float().mean().item()
+                psnr = compute_psnr(watermarked.detach(), images.detach())
+                ssim = compute_ssim(watermarked.detach(), images.detach())
+                epoch_metrics['ber'] += ber
+                epoch_metrics['psnr'] += psnr
+                epoch_metrics['ssim'] += ssim
             
             # 更新进度条
             pbar.set_postfix({
                 'loss': f"{losses['total'].item():.4f}",
                 'p_loss': f"{losses['perceptual'].item():.4f}",
-                'w_loss': f"{losses['watermark'].item():.4f}"
+                'w_loss': f"{losses['watermark'].item():.4f}",
+                'ber': f"{ber:.3f}"
             })
             
             # TensorBoard记录
             global_step = epoch * len(self.train_loader) + batch_idx
             for k, v in losses.items():
                 self.writer.add_scalar(f'train/{k}', v.item(), global_step)
+            self.writer.add_scalar('train/ber', ber, global_step)
+            self.writer.add_scalar('train/psnr', psnr, global_step)
+            self.writer.add_scalar('train/ssim', ssim, global_step)
         
         # 平均损失
         for k in epoch_losses:
             epoch_losses[k] /= len(self.train_loader)
+        for k in epoch_metrics:
+            epoch_metrics[k] /= len(self.train_loader)
         
         # 学习率调度
         self.sync_scheduler.step()
-        return epoch_losses
+        return {**epoch_losses, **epoch_metrics}
     
     def train(self):
         """

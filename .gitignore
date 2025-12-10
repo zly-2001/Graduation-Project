@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/
+.venv/
+
+# Datasets / large artifacts
+data/
+results/checkpoints/
+results/keys/
+results/logs/
+
+# IDE / misc
+.DS_Store
+
