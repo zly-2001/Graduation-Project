@@ -47,11 +47,26 @@ class WatermarkDataset(Dataset):
         self.preprocessor = preprocessor or WatermarkPreprocessor(target_bit_len=watermark_length)
         
         # 图像变换
-        self.transform = transforms.Compose([
-            transforms.Resize((image_size, image_size)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.5]*3, [0.5]*3)  # 归一化到[-1, 1]
-        ])
+        # 训练时使用数据增强，测试时只做resize和归一化
+        self.is_train = 'train' in image_dir.lower() or 'train_images' in image_dir
+        
+        if self.is_train:
+            # 训练集：数据增强（增加数据多样性）
+            self.transform = transforms.Compose([
+                transforms.Resize((image_size + 32, image_size + 32)),  # 稍大一点，用于随机裁剪
+                transforms.RandomCrop(image_size),  # 随机裁剪
+                transforms.RandomHorizontalFlip(p=0.5),  # 随机水平翻转
+                transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.05),  # 轻微颜色抖动
+                transforms.ToTensor(),
+                transforms.Normalize([0.5]*3, [0.5]*3)  # 归一化到[-1, 1]
+            ])
+        else:
+            # 测试集：只做resize和归一化（保持一致性）
+            self.transform = transforms.Compose([
+                transforms.Resize((image_size, image_size)),
+                transforms.ToTensor(),
+                transforms.Normalize([0.5]*3, [0.5]*3)  # 归一化到[-1, 1]
+            ])
     
     def __len__(self):
         return len(self.image_paths)
