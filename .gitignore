@@ -12,6 +12,8 @@ results/checkpoints/
 results/keys/
 results/logs/
 results/visualizations/
+results/visualizations_backup/
+results/checkpoints_backup/
 
 # IDE / misc
 .DS_Store
