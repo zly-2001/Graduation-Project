@@ -9,7 +9,7 @@ import random
 from torchvision import transforms
 
 class HeterogeneousAttack(nn.Module):
-    def __init__(self, use_light_aigc: bool = True, use_inpaint: bool = False, use_ip2p: bool = False, use_ddim: bool = True):
+    def __init__(self, use_light_aigc: bool = True, use_inpaint: bool = False, use_ip2p: bool = False, use_ddim: bool = True, no_attack: bool = False):
         """
         异构攻击模块：模拟多种攻击
         
@@ -18,6 +18,7 @@ class HeterogeneousAttack(nn.Module):
             use_inpaint: 是否使用inpainting攻击
             use_ip2p: 是否使用InstructPix2Pix攻击
             use_ddim: 是否使用真正的DDIM攻击（实施方式要求）
+            no_attack: 是否禁用所有攻击（第一阶段训练：让模型先学会基础嵌入）
         """
         super().__init__()
         
@@ -30,6 +31,10 @@ class HeterogeneousAttack(nn.Module):
         self.use_inpaint = use_inpaint
         self.use_ip2p = use_ip2p
         self.use_ddim = use_ddim
+        self.no_attack = no_attack  # 无攻击模式
+        
+        if no_attack:
+            print("⚠️  无攻击模式：所有攻击已禁用，直接返回原图（用于第一阶段训练）")
 
         # 延迟加载重模型，避免无依赖时报错
         self._inpaint_pipe = None
@@ -538,6 +543,10 @@ class HeterogeneousAttack(nn.Module):
         Returns:
             attacked_image: [B, 3, H, W]
         """
+        # 无攻击模式：直接返回原图（用于第一阶段训练）
+        if self.no_attack:
+            return image
+        
         # 攻击池
         attacks = [
             self.jpeg_compression,

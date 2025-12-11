@@ -87,14 +87,21 @@ class WatermarkTrainer:
         # 模型
         self.encoder = Encoder(config['watermark_length']).to(self.device)
         self.decoder = Decoder(config['watermark_length']).to(self.device)
-        # 简化版本：使用模拟DDIM以提升训练速度（Mac M4优化）
-        # 注意：模拟DDIM使用相同的数学公式，但使用轻量卷积网络代替预训练UNet
-        # 完全符合实施方式需要启用真正的DDIM（use_ddim=True），但可以先验证流程
+        # 攻击模块配置
+        # 第一阶段训练（no_attack=True）：禁用所有攻击，让模型先学会基础嵌入
+        # 等准确率达到80%+后，再设置no_attack=False启用攻击
+        no_attack_mode = config.get('no_attack', False)  # 默认False，启用攻击
+        
+        if no_attack_mode:
+            print("📌 第一阶段训练模式：禁用所有攻击，让模型先学会基础嵌入")
+            print("   等准确率达到80%+后，设置 no_attack=False 启用攻击")
+        
         self.attack = HeterogeneousAttack(
             use_ddim=False,       # ⚠️ 暂时禁用真正的DDIM（使用模拟版本，训练更快）
-            use_light_aigc=True,  # ✅ 启用模拟DDIM（使用相同公式，轻量实现）
+            use_light_aigc=not no_attack_mode,  # 无攻击模式下禁用
             use_inpaint=False,    # ❌ Mac上太慢，默认关闭
-            use_ip2p=False        # ❌ Mac上太慢，默认关闭
+            use_ip2p=False,       # ❌ Mac上太慢，默认关闭
+            no_attack=no_attack_mode  # 无攻击模式
         ).to(self.device)
         
         # 同步模板生成器
@@ -328,7 +335,18 @@ class WatermarkTrainer:
         best_loss = float('inf')
         
         # 自动检测checkpoint（如果用户没有指定resume_from）
+        # 注意：如果启用了无攻击模式，且之前是有攻击模式训练的，建议从头开始
         if resume_from is None:
+            # 检查训练模式是否改变
+            no_attack_mode = self.config.get('no_attack', False)
+            if no_attack_mode and os.path.exists(self.config['save_dir']):
+                # 检查是否有checkpoint
+                checkpoints = [f for f in os.listdir(self.config['save_dir']) if f.startswith('epoch_') and f.endswith('.pth')]
+                if checkpoints:
+                    print("⚠️  检测到无攻击模式，但存在之前的checkpoint（可能是有攻击模式训练的）")
+                    print("   建议：从头开始训练（删除checkpoint或设置resume_from=None）")
+                    print("   如果继续使用，可能效果不佳")
+            
             # 自动检测：优先使用latest，如果没有则使用best
             if os.path.exists(self.config['save_dir']):
                 checkpoints = [f for f in os.listdir(self.config['save_dir']) if f.startswith('epoch_') and f.endswith('.pth')]
@@ -690,11 +708,15 @@ if __name__ == "__main__":
         'watermark_length': 640,  # 64bit原文 + BCH(127,64,10) + 512bit签名
         
         # 训练
-        'epochs': 100,  # 总训练轮数（可以设置大一点，比如100轮）
+        'epochs': 50,  # 总训练轮数（可以设置大一点，比如100轮）
         'lr': 0.0002,
         'lr_step': 30,
         'lambda_p': 0.5,
         'lambda_w': 20.0,
+        
+        # 训练策略
+        'no_attack': True,  # 第一阶段：设为True禁用所有攻击，让模型先学会基础嵌入
+                             # 等准确率达到80%+后，改为False启用攻击进行鲁棒性训练
         
         # 保存
         'save_dir': save_dir,
