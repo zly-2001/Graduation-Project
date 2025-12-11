@@ -16,3 +16,13 @@ results/visualizations/
 # IDE / misc
 .DS_Store
 
+models/__pycache__/
+utils/__pycache__/
+experiments/__pycache__/
+datasets/__pycache__/
+data/__pycache__/
+results/__pycache__/
+results/checkpoints/__pycache__/
+results/keys/__pycache__/
+results/logs/__pycache__/
+results/visualizations/__pycache__/
