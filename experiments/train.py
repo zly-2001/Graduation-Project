@@ -455,13 +455,16 @@ class WatermarkTrainer:
         path = os.path.join(self.config['save_dir'], f'{name}.pth')
         torch.save(checkpoint, path)
     
-    def load_checkpoint(self, checkpoint_path, resume_training=True):
+    def load_checkpoint(self, checkpoint_path, resume_training=True, 
+                       load_optimizer=True, load_scheduler=True):
         """
         加载检查点，支持恢复训练
         
         Args:
             checkpoint_path: checkpoint文件路径
             resume_training: 是否恢复训练（True=继续训练，False=只加载模型）
+            load_optimizer: 是否加载优化器状态（默认True，如果修改了学习率可以设为False）
+            load_scheduler: 是否加载调度器状态（默认True，如果修改了lr_step可以设为False）
         
         Returns:
             start_epoch: 开始的epoch（如果恢复训练）
@@ -484,14 +487,49 @@ class WatermarkTrainer:
         
         if resume_training:
             # 恢复训练状态
-            if 'optimizer' in checkpoint:
-                self.optimizer.load_state_dict(checkpoint['optimizer'])
-            if 'sync_optimizer' in checkpoint:
-                self.sync_optimizer.load_state_dict(checkpoint['sync_optimizer'])
-            if 'scheduler' in checkpoint:
-                self.scheduler.load_state_dict(checkpoint['scheduler'])
-            if 'sync_scheduler' in checkpoint:
-                self.sync_scheduler.load_state_dict(checkpoint['sync_scheduler'])
+            if load_optimizer:
+                if 'optimizer' in checkpoint:
+                    try:
+                        self.optimizer.load_state_dict(checkpoint['optimizer'])
+                        # 如果学习率配置改变了，更新优化器的学习率
+                        current_lr = self.config.get('lr', 0.0001)
+                        for param_group in self.optimizer.param_groups:
+                            param_group['lr'] = current_lr
+                        print(f"  📝 优化器已加载，学习率已更新为: {current_lr}")
+                    except Exception as e:
+                        print(f"  ⚠️  优化器状态加载失败，使用新配置: {e}")
+                        # 使用新配置的学习率重新初始化
+                        for param_group in self.optimizer.param_groups:
+                            param_group['lr'] = self.config.get('lr', 0.0001)
+                
+                if 'sync_optimizer' in checkpoint:
+                    try:
+                        self.sync_optimizer.load_state_dict(checkpoint['sync_optimizer'])
+                    except Exception as e:
+                        print(f"  ⚠️  同步优化器状态加载失败: {e}")
+            else:
+                print(f"  📝 跳过优化器状态加载，使用新配置的学习率")
+            
+            if load_scheduler:
+                if 'scheduler' in checkpoint:
+                    try:
+                        self.scheduler.load_state_dict(checkpoint['scheduler'])
+                    except Exception as e:
+                        print(f"  ⚠️  调度器状态加载失败，使用新配置: {e}")
+                        # 重新创建调度器
+                        self.scheduler = optim.lr_scheduler.StepLR(
+                            self.optimizer,
+                            step_size=self.config['lr_step'],
+                            gamma=0.5
+                        )
+                
+                if 'sync_scheduler' in checkpoint:
+                    try:
+                        self.sync_scheduler.load_state_dict(checkpoint['sync_scheduler'])
+                    except Exception as e:
+                        print(f"  ⚠️  同步调度器状态加载失败: {e}")
+            else:
+                print(f"  📝 跳过调度器状态加载，使用新配置")
             
             start_epoch = checkpoint.get('epoch', 0) + 1
             print(f"✅ 从epoch {start_epoch}恢复训练 (best_loss={best_loss:.4f})")
@@ -653,10 +691,10 @@ if __name__ == "__main__":
         
         # 训练
         'epochs': 100,  # 总训练轮数（可以设置大一点，比如100轮）
-        'lr': 0.0001,
-        'lr_step': 20,
-        'lambda_p': 1.0,
-        'lambda_w': 10.0,
+        'lr': 0.0002,
+        'lr_step': 30,
+        'lambda_p': 0.5,
+        'lambda_w': 20.0,
         
         # 保存
         'save_dir': save_dir,
