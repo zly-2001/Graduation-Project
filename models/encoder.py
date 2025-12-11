@@ -71,10 +71,15 @@ class Encoder(nn.Module):
     
     def forward(self, image, watermark_bits, sync_pattern):
         """
+        权利要求2：多域分层嵌入，功能分离方式
+        
+        - 待嵌载荷B：通过全连接层注入U-Net瓶颈层（低频语义特征域）
+        - 同步模板S：直接叠加到图像（中高频纹理特征域）
+        
         Args:
             image: [B,3,H,W]
-            watermark_bits: [B, L]
-            sync_pattern: [B,1,H,W]
+            watermark_bits: [B, L] 待嵌载荷B
+            sync_pattern: [B,1,H,W] 同步模板S
         Returns:
             watermarked_image: I + alpha*R + beta*S
         """
@@ -104,13 +109,19 @@ class Encoder(nn.Module):
         d2 = self.up2(d3)
         d2 = self.dec2(torch.cat([d2, x1], dim=1))
         
-        residual = torch.tanh(self.out_conv(d2))  # [-1,1]，尺寸与输入一致（256x256）
+        residual = torch.tanh(self.out_conv(d2))  # [-1,1]，解码路径最终输出，尺寸与输入一致（256x256）
         
-        # 同步模板叠加（插值到图像尺寸）
-        if sync_pattern.shape[-1] != image.shape[-1]:
-            sync_pattern = F.interpolate(sync_pattern, size=image.shape[2:], mode='bilinear', align_corners=False)
-        # 水印图像
-        watermarked_image = image + self.alpha * residual + self.beta * sync_pattern
+        # 实施方式A3：将同步模板S与解码路径的最终输出（residual）进行元素级相加
+        if sync_pattern.shape[-1] != residual.shape[-1] or sync_pattern.shape[-2] != residual.shape[-2]:
+            sync_pattern = F.interpolate(sync_pattern, size=residual.shape[2:], mode='bilinear', align_corners=False)
+        # 将同步模板扩展到3通道以匹配residual
+        if sync_pattern.shape[1] == 1:
+            sync_pattern = sync_pattern.expand(-1, 3, -1, -1)
+        # 同步模板与解码路径最终输出相加
+        residual = residual + self.beta * sync_pattern
+        
+        # 实施方式A4-A5：输出扰动残差Δ，最终水印图像 I_w = I + α·Δ
+        watermarked_image = image + self.alpha * residual
         watermarked_image = torch.clamp(watermarked_image, -1, 1)
         return watermarked_image
 

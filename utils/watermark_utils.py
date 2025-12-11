@@ -85,12 +85,15 @@ class WatermarkPreprocessor:
         r, s = decode_dss_signature(der_sig)
         signature = r.to_bytes(32, 'big') + s.to_bytes(32, 'big')
         
-        structured = encoded_data + signature  # 预计约80字节
+        structured = encoded_data + signature  # 8+9+64=81字节
         
         # 截断或填充到目标长度
         target_bytes = self.target_bit_len // 8
         if len(structured) > target_bytes:
+            # 如果超过目标长度，截断签名部分（保留尽可能多的签名）
+            # 注意：这会导致签名验证失败，但至少可以尝试BCH解码
             structured = structured[:target_bytes]
+            # 警告：签名被截断，验证将失败
         else:
             structured = structured.ljust(target_bytes, b'\x00')
         
@@ -110,33 +113,63 @@ class WatermarkPreprocessor:
         
         data_len_bytes = 8  # 64bit 原文
         encoded_len = data_len_bytes + self.bch.ecc_bytes
-        if len(payload_bytes) < encoded_len + 64:
-            return {"status": False, "verified": False, "message": "载荷长度不足"}
+        required_len = encoded_len + 64  # 需要的数据+ECC+签名长度
+        
+        # 获取可用的签名长度（可能被截断）
+        available_sig_len = min(64, len(payload_bytes) - encoded_len)
+        
+        if len(payload_bytes) < encoded_len:
+            return {
+                "status": False, 
+                "verified": False, 
+                "message": f"载荷长度不足: 至少需要{encoded_len}字节用于数据+ECC，实际{len(payload_bytes)}字节"
+            }
         
         encoded_data = payload_bytes[:encoded_len]
-        signature = payload_bytes[encoded_len:encoded_len+64]
+        signature = payload_bytes[encoded_len:encoded_len+available_sig_len]
+        
+        # 如果签名被截断，标记警告
+        if available_sig_len < 64:
+            sig_warning = f" (签名被截断: 需要64字节，实际{available_sig_len}字节)"
+        else:
+            sig_warning = ""
         
         # 验签
         if self.public_key is None:
             return {"status": False, "verified": False, "message": "缺少公钥，无法验签"}
-        try:
-            r = int.from_bytes(signature[:32], 'big')
-            s = int.from_bytes(signature[32:], 'big')
-            der_sig = encode_dss_signature(r, s)
-            self.public_key.verify(der_sig, encoded_data, ec.ECDSA(hashes.SHA256()))
-            verified = True
-        except InvalidSignature:
+        
+        verified = False
+        if available_sig_len >= 64:
+            # 只有签名完整时才尝试验证
+            try:
+                r = int.from_bytes(signature[:32], 'big')
+                s = int.from_bytes(signature[32:], 'big')
+                der_sig = encode_dss_signature(r, s)
+                self.public_key.verify(der_sig, encoded_data, ec.ECDSA(hashes.SHA256()))
+                verified = True
+            except InvalidSignature:
+                verified = False
+        else:
+            # 签名不完整，无法验证
             verified = False
         
         # BCH 解码
         try:
             data, _ = self.bch.decode(encoded_data)
         except Exception as e:
-            return {"status": False, "verified": verified, "message": f"BCH解码失败: {e}"}
+            return {
+                "status": False, 
+                "verified": verified, 
+                "message": f"BCH解码失败: {e}{sig_warning}"
+            }
         
         # 解析原始64bit
         if len(data) < data_len_bytes:
-            return {"status": False, "verified": verified, "message": "数据长度不足"}
+            return {
+                "status": False, 
+                "verified": verified, 
+                "message": f"数据长度不足{sig_warning}"
+            }
         info_bits = format(int.from_bytes(data[:data_len_bytes], 'big'), '064b')
         id_bits = info_bits[:16]
         ts_bits = info_bits[16:32]
@@ -147,7 +180,7 @@ class WatermarkPreprocessor:
             "identity_bits": id_bits,
             "timestamp": int(ts_bits, 2),
             "hash_prefix": hash_bits,
-            "message": "ok"
+            "message": "ok" + sig_warning if sig_warning else "ok"
         }
 
     # ========== 密钥持久化 ==========
