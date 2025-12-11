@@ -13,12 +13,16 @@ source ~/.zshrc
 
 **安装依赖**：
 ```bash
+# 必需库
 pip install torch torchvision
-pip install lpips
-pip install bchlib
-pip install cryptography
-pip install diffusers transformers  
+pip install lpips                    # 感知损失
+pip install bchlib                   # BCH纠错编码
+pip install cryptography             # ECDSA数字签名
+pip install pillow numpy tqdm tensorboard
+pip install diffusers transformers   # 可选
 ```
+
+**实际使用的库**：详见 [实际使用的库和参考.md](实际使用的库和参考.md)
 
 ### 数据准备
 
@@ -46,12 +50,29 @@ python experiments/test.py
 
 本项目参考了以下优秀工作（详见 `REFERENCES.md`）：
 
+### 经典方法
 - [StegaStamp](https://github.com/tancik/StegaStamp.git) - CVPR 2020
 - [HiDDeN](https://github.com/ando-khachatryan/HiDDeN.git) - WACV 2018
 - [RoSteALS](https://github.com/guanzhichen/RoSteALS.git) - ICCV 2023
-- [Tree-Ring Watermarks](https://github.com/YuxinWenRick/tree-ring-watermark.git) - NeurIPS 2024
 - [Stable Signature](https://github.com/facebookresearch/stable_signature.git) - Meta 2023
+
+### 最新方法（2024-2025）
+- [Tree-Ring Watermarks](https://github.com/YuxinWenRick/tree-ring-watermark.git) - NeurIPS 2024
+- [TrustMark](https://github.com/adobe/trustmark) (2025, ICCV) - Adobe开源，空谱损失函数
+- [InvisMark](https://github.com/microsoft/InvisMark) (2025, WACV) - Microsoft开源，AIGC图像溯源
+- [Hidden in the Noise](https://github.com/Kasraarabi/Hidden-in-the-Noise) (2025) - 两阶段水印框架
+- [SFWMark](https://github.com/thomas11809/SFWMark) (2025) - 语义水印框架
+- [VINE](https://github.com/Shilin-LU/VINE) (2025) - 生成先验水印
+- **WaterFlow** (2025) - 潜在空间傅里叶域水印（代码待发布）
+- **GaussMarker** (2025) - 双域水印策略（代码待发布）
+- **SEAL** (2025, ICCV) - 语义感知水印（代码待发布）
+
+### 使用的开源库
 - [LPIPS](https://github.com/richzhang/PerceptualSimilarity.git) - 感知损失
+- [python-bchlib](https://github.com/jkent/python-bchlib.git) - BCH纠错编码
+- [diffusers](https://github.com/huggingface/diffusers) - 扩散模型
+
+**完整参考列表请查看**: [REFERENCES.md](REFERENCES.md)
 
 ## 📖 项目结构
 
@@ -75,19 +96,3 @@ watermark/
     ├── visualizations/  # 可视化图像
     └── logs/            # TensorBoard日志
 ```
-
-## 🔬 技术特点
-
-### 1. 多域分层嵌入
-- 载荷嵌入到低频语义域（U-Net瓶颈层）
-- 同步模板嵌入到中高频纹理域（解码路径）
-
-### 2. 异构攻击模块
-- 传统攻击：JPEG、仿射变换、高斯噪声
-- AI攻击：GAN风格、DDIM去噪（模拟/真实）
-- 可微攻击：支持端到端训练
-
-### 3. 可信溯源
-- BCH纠错编码：抵抗比特错误
-- ECDSA数字签名：确保来源真实性
-- 结构化证据包：完整的法证链条

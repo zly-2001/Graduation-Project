@@ -4,6 +4,8 @@
 
 ## 📚 参考论文与实现
 
+### 经典方法（2018-2023）
+
 ### 1. StegaStamp (2020, CVPR)
 - **GitHub**: https://github.com/tancik/StegaStamp.git
 - **论文**: "Learning to Invert: Signal Recovery via Deep Convolutional Networks"
@@ -19,15 +21,91 @@
 - **论文**: "Robust Steganography Using Steganographic Adversarial Networks"
 - **参考内容**: 鲁棒性攻击模拟、VAE架构
 
-### 4. Tree-Ring Watermarks (2024, NeurIPS)
+### 4. Stable Signature (2023, Meta)
+- **GitHub**: https://github.com/facebookresearch/stable_signature.git
+- **论文**: "Stable Signature: Rooting Watermarks in Latent Diffusion Models"
+- **参考内容**: 水印预处理、签名验证流程
+
+### 最新方法（2024-2025）
+
+### 5. Tree-Ring Watermarks (2024, NeurIPS)
 - **GitHub**: https://github.com/YuxinWenRick/tree-ring-watermark.git
 - **论文**: "Tree-Ring Watermarks: Fingerprints for Diffusion Images that are Invisible and Robust"
 - **参考内容**: 扩散模型攻击、频域同步模板
 
-### 5. Stable Signature (2023, Meta)
-- **GitHub**: https://github.com/facebookresearch/stable_signature.git
-- **论文**: "Stable Signature: Rooting Watermarks in Latent Diffusion Models"
-- **参考内容**: 水印预处理、签名验证流程
+### 6. WaterFlow (2025)
+- **arXiv**: https://arxiv.org/abs/2504.12354
+- **论文**: "WaterFlow: Robust Watermarking in Latent Diffusion Models"
+- **参考内容**: 傅里叶域水印嵌入、潜在空间水印
+- **代码**: ⚠️ 暂未找到公开代码
+
+### 7. GaussMarker (2025)
+- **arXiv**: https://arxiv.org/abs/2506.11444
+- **论文**: "GaussMarker: Dual-Domain Watermarking for Diffusion Models"
+- **参考内容**: 空间域+频域双域水印、高斯噪声恢复器
+- **代码**: ⚠️ 暂未找到公开代码
+
+### 8. WMAdapter (2025, ICML)
+- **论文**: "WMAdapter: Plug-and-Play Watermarking for Diffusion Models"
+- **参考内容**: 即插即用水印适配器、上下文自适应嵌入
+- **代码**: ⚠️ 暂未找到公开代码
+
+### 9. MaXsive (2025)
+- **论文**: "MaXsive: Training-Free Generative Watermarking"
+- **参考内容**: 无训练水印、X形模板抗几何攻击
+- **代码**: ⚠️ 暂未找到公开代码
+
+### 10. SimuFreeMark (2025)
+- **arXiv**: https://arxiv.org/abs/2511.11295
+- **论文**: "SimuFreeMark: A Noise-Simulation-Free Robust Watermarking Against Image Editing"
+- **参考内容**: 无噪声模拟训练、VAE低频嵌入
+- **代码**: ⚠️ 暂未找到公开代码
+
+### 11. TrustMark (2025, ICCV) ✅ **已开源**
+- **论文**: "TrustMark: Robust Watermarking and Watermark Removal for Arbitrary Resolution Images"
+- **GitHub**: https://github.com/adobe/trustmark
+- **参考内容**: 空谱损失函数、任意分辨率支持
+- **开发者**: Adobe
+
+### 12. InvisMark (2025, WACV) ✅ **已开源**
+- **论文**: "InvisMark: Invisible and Robust Watermarking for AI-Generated Image Provenance"
+- **GitHub**: https://github.com/microsoft/InvisMark
+- **参考内容**: 高分辨率AIGC图像水印、神经网络架构
+- **开发者**: Microsoft
+
+### 13. SEAL (2025, ICCV)
+- **论文**: "SEAL: Semantic Aware Image Watermarking"
+- **参考内容**: 语义感知水印、内容语义信息利用
+- **代码**: ⚠️ 暂未找到公开代码
+
+### 14. Text-Guided Invariant Feature Learning (2025)
+- **arXiv**: https://arxiv.org/abs/2503.13805
+- **论文**: "Text-Guided Invariant Feature Learning for Robust Watermarking"
+- **参考内容**: CLIP多模态、文本嵌入作为语义锚点
+- **代码**: ⚠️ 暂未找到公开代码
+
+### 15. Hidden in the Noise (2025) ✅ **已开源**
+- **GitHub**: https://github.com/Kasraarabi/Hidden-in-the-Noise
+- **论文**: "Hidden in the Noise: Two-Stage Robust Watermarking for Images"
+- **参考内容**: 两阶段水印框架、扩散模型初始噪声利用
+
+### 16. SFWMark (2025) ✅ **已开源**
+- **GitHub**: https://github.com/thomas11809/SFWMark
+- **论文**: "SFWMark: Semantic Watermarking Framework"
+- **参考内容**: 语义水印框架、傅里叶域分析
+
+### 17. VINE (2025) ✅ **已开源**
+- **GitHub**: https://github.com/Shilin-LU/VINE
+- **论文**: "VINE: Robust Watermarking Using Generative Priors"
+- **参考内容**: 生成先验、图像编辑鲁棒性
+
+## 📅 时间线
+
+- **2018**: HiDDeN - 深度隐写术的开创性工作
+- **2020**: StegaStamp - U-Net架构的隐写术
+- **2023**: RoSteALS, Stable Signature - 鲁棒性和扩散模型水印
+- **2024**: Tree-Ring Watermarks - 频域同步模板
+- **2025**: WaterFlow, GaussMarker, WMAdapter, TrustMark, InvisMark, SEAL - 最新AIGC水印方法
 
 ## 🔧 使用的开源库
 
